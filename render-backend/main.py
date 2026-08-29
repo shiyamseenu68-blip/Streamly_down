@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import yt_dlp
 
-# Configure Application-Level Safe Diagnostic Logger
+# Configure Application-Level Logger
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [StreamlyDiagnostic] %(message)s")
 logger = logging.getLogger("streamly")
 
@@ -46,37 +46,32 @@ def get_ffmpeg_path() -> str:
 
 class SafeDiagnosticLogger:
     def debug(self, msg):
-        self._filter_and_log("DEBUG", msg)
+        self._write_safe("DEBUG", msg)
 
     def info(self, msg):
-        self._filter_and_log("INFO", msg)
+        self._write_safe("INFO", msg)
 
     def warning(self, msg):
-        self._filter_and_log("WARNING", msg)
+        self._write_safe("WARNING", msg)
 
     def error(self, msg):
-        self._filter_and_log("ERROR", msg)
+        self._write_safe("ERROR", msg)
 
-    def _filter_and_log(self, level, msg):
+    def _write_safe(self, level, msg):
+        if not msg:
+            return
         if not isinstance(msg, str):
             msg = str(msg)
-            
-        # Filter for relevant yt-dlp & PO token diagnostic lines
-        if any(keyword in msg for keyword in [
-            "player_client", "player API", "player-client",
-            "PO Token", "PO Token Providers", "Generating a gvs PO Token",
-            "Retrieved a gvs PO Token", "Retrieved a subs PO Token",
-            "bgutil", "youtubepot", "JS challenge", "Sign in to confirm",
-            "SABR", "skipping", "skipped", "ExtractorError", "n challenge"
-        ]):
-            # Redact any sensitive tokens or visitor data if present
-            safe_msg = msg
-            for term in ["po_token", "visitor_data", "Authorization", "Bearer"]:
-                if f"{term}=" in safe_msg or f"{term}:" in safe_msg:
-                    parts = safe_msg.split(term)
-                    safe_msg = parts[0] + f"{term}=[REDACTED]"
-            
-            logger.info(f"[{level}] {safe_msg}")
+        
+        # Redact sensitive parameters if present
+        safe_msg = msg
+        for term in ["po_token=", "visitor_data=", "authorization:", "bearer ", "cookie:"]:
+            if term.lower() in safe_msg.lower():
+                parts = safe_msg.split(term)
+                safe_msg = parts[0] + f"{term}[REDACTED]"
+        
+        # Print complete trace to standard output for Render Dashboard Logs
+        print(f"[yt-dlp {level}] {safe_msg}", flush=True)
 
 def get_yt_dlp_base_opts() -> dict:
     ffmpeg_bin = get_ffmpeg_path()
@@ -87,7 +82,7 @@ def get_yt_dlp_base_opts() -> dict:
             "base_url": ["http://127.0.0.1:4416"],
         },
         "youtube": {
-            "player_client": ["mweb", "ios", "web"],
+            "player_client": ["mweb", "ios", "android", "web"],
         }
     }
 
