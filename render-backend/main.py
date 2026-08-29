@@ -58,7 +58,7 @@ def get_yt_dlp_base_opts() -> dict:
         "no_color": True,
         "nocheckcertificate": True,
         "ffmpeg_location": ffmpeg_bin,
-        "js_runtimes": ["node"],
+        "js_runtimes": {"node": {}},
         "extractor_args": extractor_args,
     }
 
