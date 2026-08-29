@@ -4,11 +4,16 @@ import uuid
 import shutil
 import tempfile
 import asyncio
+import logging
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import yt_dlp
+
+# Configure Application-Level Safe Diagnostic Logger
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [StreamlyDiagnostic] %(message)s")
+logger = logging.getLogger("streamly")
 
 app = FastAPI(title="Streamly Media Backend", version="1.0.0")
 
@@ -39,6 +44,40 @@ def get_ffmpeg_path() -> str:
 
     return "ffmpeg"
 
+class SafeDiagnosticLogger:
+    def debug(self, msg):
+        self._filter_and_log("DEBUG", msg)
+
+    def info(self, msg):
+        self._filter_and_log("INFO", msg)
+
+    def warning(self, msg):
+        self._filter_and_log("WARNING", msg)
+
+    def error(self, msg):
+        self._filter_and_log("ERROR", msg)
+
+    def _filter_and_log(self, level, msg):
+        if not isinstance(msg, str):
+            msg = str(msg)
+            
+        # Filter for relevant yt-dlp & PO token diagnostic lines
+        if any(keyword in msg for keyword in [
+            "player_client", "player API", "player-client",
+            "PO Token", "PO Token Providers", "Generating a gvs PO Token",
+            "Retrieved a gvs PO Token", "Retrieved a subs PO Token",
+            "bgutil", "youtubepot", "JS challenge", "Sign in to confirm",
+            "SABR", "skipping", "skipped", "ExtractorError", "n challenge"
+        ]):
+            # Redact any sensitive tokens or visitor data if present
+            safe_msg = msg
+            for term in ["po_token", "visitor_data", "Authorization", "Bearer"]:
+                if f"{term}=" in safe_msg or f"{term}:" in safe_msg:
+                    parts = safe_msg.split(term)
+                    safe_msg = parts[0] + f"{term}=[REDACTED]"
+            
+            logger.info(f"[{level}] {safe_msg}")
+
 def get_yt_dlp_base_opts() -> dict:
     ffmpeg_bin = get_ffmpeg_path()
     
@@ -53,8 +92,10 @@ def get_yt_dlp_base_opts() -> dict:
     }
 
     return {
-        "quiet": True,
-        "no_warnings": True,
+        "quiet": False,
+        "verbose": True,
+        "logger": SafeDiagnosticLogger(),
+        "no_warnings": False,
         "no_color": True,
         "nocheckcertificate": True,
         "ffmpeg_location": ffmpeg_bin,
@@ -95,6 +136,8 @@ async def analyze_url(req: AnalyzeRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
 
+    logger.info(f"Starting metadata extraction for request URL host: {url.split('/')[2] if '/' in url else 'unknown'}")
+
     ydl_opts = get_yt_dlp_base_opts()
     ydl_opts.update({
         "skip_download": True,
@@ -105,6 +148,7 @@ async def analyze_url(req: AnalyzeRequest):
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False))
         if not info:
+            logger.error("Extraction failed: info dict returned empty")
             raise HTTPException(status_code=400, detail="Failed to extract media information")
 
         platform = "instagram" if ("instagram.com" in url) else "youtube"
@@ -168,11 +212,13 @@ async def analyze_url(req: AnalyzeRequest):
             },
         }
 
+        logger.info(f"Successfully extracted metadata. Title length: {len(metadata['title'])}, Video Formats: {len(video_formats)}, Audio Formats: {len(audio_formats)}")
         return {"success": True, "data": metadata}
 
     except Exception as e:
         err_msg = str(e)
-        if "Private" in err_msg or "login" in err_msg:
+        logger.error(f"Extraction error caught: {err_msg}")
+        if "Private" in err_msg or "login" in err_msg or "Sign in to confirm" in err_msg:
             raise HTTPException(status_code=400, detail="This content is private or requires authentication")
         raise HTTPException(status_code=400, detail=f"Extraction failed: {err_msg}")
 
@@ -188,6 +234,8 @@ async def download_media(
     unique_id = f"streamly_{req_type}_{uuid.uuid4().hex[:8]}"
     temp_dir = tempfile.gettempdir()
     out_template = os.path.join(temp_dir, f"{unique_id}.%(ext)s")
+
+    logger.info(f"Starting download request: type={req_type}, quality={quality_label}")
 
     loop = asyncio.get_event_loop()
 
@@ -221,12 +269,14 @@ async def download_media(
 
         if not os.path.exists(expected_file):
             cleanup_temp_files(unique_id)
+            logger.error(f"MP3 download failed: file {expected_file} was not generated")
             raise HTTPException(status_code=500, detail="Failed to generate MP3 audio file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"audio_{clean_name}.mp3"
         background_tasks.add_task(cleanup_temp_files, unique_id)
 
+        logger.info(f"MP3 download completed successfully: filename={filename}")
         return FileResponse(
             path=expected_file,
             filename=filename,
@@ -265,12 +315,14 @@ async def download_media(
 
         if not os.path.exists(expected_file):
             cleanup_temp_files(unique_id)
+            logger.error(f"MP4 download failed: file {expected_file} was not generated")
             raise HTTPException(status_code=500, detail="Failed to generate MP4 video file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"video_{clean_name}.mp4"
         background_tasks.add_task(cleanup_temp_files, unique_id)
 
+        logger.info(f"MP4 download completed successfully: filename={filename}")
         return FileResponse(
             path=expected_file,
             filename=filename,
