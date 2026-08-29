@@ -38,6 +38,51 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const backendUrl = process.env.STREAMLY_BACKEND_URL;
+    const apiSecret = process.env.STREAMLY_API_SECRET || "";
+
+    // 4. Production Proxy to Render Python Backend (if configured)
+    if (backendUrl) {
+      const headers: Record<string, string> = {};
+      if (apiSecret) {
+        headers["Authorization"] = `Bearer ${apiSecret}`;
+      }
+
+      const proxyTargetUrl = `${backendUrl}/api/download?url=${encodeURIComponent(validation.cleanUrl)}&type=${encodeURIComponent(type)}&quality=${encodeURIComponent(quality)}`;
+      const proxyRes = await fetch(proxyTargetUrl, { headers });
+
+      if (!proxyRes.ok) {
+        const errorJson = await proxyRes.json().catch(() => ({}));
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "DOWNLOAD_FAILED",
+              message: errorJson.detail || "Failed to process download on remote service.",
+            },
+          },
+          { status: proxyRes.status }
+        );
+      }
+
+      const contentType = proxyRes.headers.get("content-type") || (type === "mp3" ? "audio/mpeg" : "video/mp4");
+      const contentDisposition = proxyRes.headers.get("content-disposition") || `attachment; filename="media.${type}"`;
+
+      const responseHeaders = new Headers();
+      responseHeaders.set("Content-Type", contentType);
+      responseHeaders.set("Content-Disposition", contentDisposition);
+      if (proxyRes.headers.get("content-length")) {
+        responseHeaders.set("Content-Length", proxyRes.headers.get("content-length")!);
+      }
+      responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+
+      return new NextResponse(proxyRes.body, {
+        status: 200,
+        headers: responseHeaders,
+      });
+    }
+
+    // 5. Fallback to Local Engine (for local development)
     let result;
     let contentType = "video/mp4";
 
@@ -68,10 +113,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { filePath, filename, filesize } = result;
-
     const nodeStream = fs.createReadStream(filePath);
 
-    // Immediate temporary file cleanup handler
     const cleanup = () => {
       fs.unlink(filePath, (err) => {
         if (err && err.code !== "ENOENT") {
