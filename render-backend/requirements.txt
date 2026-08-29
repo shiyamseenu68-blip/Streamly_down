@@ -1,5 +1,7 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-yt-dlp>=2026.8.19
-gunicorn>=21.2.0
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+yt-dlp>=2024.8.1
+gunicorn>=22.0.0
 python-multipart>=0.0.9
+bgutil-ytdlp-pot-provider>=0.1.0
+yt-dlp-get-pot>=0.1.0

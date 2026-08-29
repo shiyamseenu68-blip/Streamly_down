@@ -39,6 +39,33 @@ def get_ffmpeg_path() -> str:
 
     return "ffmpeg"
 
+def get_yt_dlp_base_opts() -> dict:
+    ffmpeg_bin = get_ffmpeg_path()
+    
+    # Official yt-dlp PO Token Provider & client fallback strategy
+    # Uses iOS/mweb/android client rotation to bypass botguard checks on cloud IPs
+    extractor_args = {
+        "youtube": {
+            "player_client": ["ios", "mweb", "android", "tv", "web"],
+        }
+    }
+    
+    po_token = os.getenv("YT_DLP_PO_TOKEN")
+    visitor_data = os.getenv("YT_DLP_VISITOR_DATA")
+    if po_token:
+        extractor_args["youtube"]["po_token"] = [f"web+{po_token}"]
+    if visitor_data:
+        extractor_args["youtube"]["visitor_data"] = [visitor_data]
+
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "no_color": True,
+        "nocheckcertificate": True,
+        "ffmpeg_location": ffmpeg_bin,
+        "extractor_args": extractor_args,
+    }
+
 class AnalyzeRequest(BaseModel):
     url: str
 
@@ -72,17 +99,11 @@ async def analyze_url(req: AnalyzeRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
 
-    ffmpeg_bin = get_ffmpeg_path()
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "no_color": True,
+    ydl_opts = get_yt_dlp_base_opts()
+    ydl_opts.update({
         "skip_download": True,
         "extract_flat": False,
-        "nocheckcertificate": True,
-        "ffmpeg_location": ffmpeg_bin,
-    }
+    })
 
     try:
         loop = asyncio.get_event_loop()
@@ -171,7 +192,6 @@ async def download_media(
     unique_id = f"streamly_{req_type}_{uuid.uuid4().hex[:8]}"
     temp_dir = tempfile.gettempdir()
     out_template = os.path.join(temp_dir, f"{unique_id}.%(ext)s")
-    ffmpeg_bin = get_ffmpeg_path()
 
     loop = asyncio.get_event_loop()
 
@@ -183,18 +203,16 @@ async def download_media(
 
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp3")
 
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
+        ydl_opts = get_yt_dlp_base_opts()
+        ydl_opts.update({
             "format": "bestaudio/best",
             "outtmpl": out_template,
-            "ffmpeg_location": ffmpeg_bin,
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": bitrate_arg.replace("k", ""),
             }],
-        }
+        })
 
         def run_mp3():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -233,14 +251,12 @@ async def download_media(
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp4")
         format_spec = f"bestvideo[height={target_height}]+bestaudio/bestvideo[height<={target_height}]+bestaudio/best[height<={target_height}]/best"
 
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
+        ydl_opts = get_yt_dlp_base_opts()
+        ydl_opts.update({
             "format": format_spec,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
-            "ffmpeg_location": ffmpeg_bin,
-        }
+        })
 
         def run_mp4():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
