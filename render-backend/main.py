@@ -1,5 +1,7 @@
 import os
+import sys
 import uuid
+import shutil
 import tempfile
 import asyncio
 from typing import Optional
@@ -10,8 +12,8 @@ import yt_dlp
 
 app = FastAPI(title="Streamly Media Backend", version="1.0.0")
 
-# Security Token Middleware Check
-API_SECRET = os.getenv("STREAMLY_API_SECRET", "")
+# Security Token Configuration
+API_SECRET = os.getenv("STREAMLY_API_SECRET", "streamly_test_secret")
 
 def verify_token(authorization: Optional[str] = Header(None)):
     if API_SECRET:
@@ -20,6 +22,22 @@ def verify_token(authorization: Optional[str] = Header(None)):
         token = authorization.split("Bearer ")[1].strip()
         if token != API_SECRET:
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid token")
+
+def get_ffmpeg_path() -> str:
+    binary = shutil.which("ffmpeg")
+    if binary and os.path.exists(binary):
+        return binary
+    
+    # Fallback to project node_modules ffmpeg-static path on Windows/Linux
+    local_win = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "node_modules", "ffmpeg-static", "ffmpeg.exe"))
+    if os.path.exists(local_win):
+        return local_win
+
+    local_linux = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "node_modules", "ffmpeg-static", "ffmpeg"))
+    if os.path.exists(local_linux):
+        return local_linux
+
+    return "ffmpeg"
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -30,10 +48,17 @@ def sanitize_filename(title: str) -> str:
     clean = "".join([c if c.isalnum() or c in " _-" else "" for c in title]).strip().replace(" ", "_")
     return clean[:80] or "media"
 
-def remove_temp_file(path: str):
+def cleanup_temp_files(unique_id: str, keep_file: Optional[str] = None):
     try:
-        if os.path.exists(path):
-            os.remove(path)
+        temp_dir = tempfile.gettempdir()
+        for f in os.listdir(temp_dir):
+            if f.startswith(unique_id):
+                full_path = os.path.join(temp_dir, f)
+                if not keep_file or full_path != keep_file:
+                    try:
+                        os.remove(full_path)
+                    except Exception:
+                        pass
     except Exception:
         pass
 
@@ -47,6 +72,8 @@ async def analyze_url(req: AnalyzeRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
 
+    ffmpeg_bin = get_ffmpeg_path()
+
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -54,6 +81,7 @@ async def analyze_url(req: AnalyzeRequest):
         "skip_download": True,
         "extract_flat": False,
         "nocheckcertificate": True,
+        "ffmpeg_location": ffmpeg_bin,
     }
 
     try:
@@ -143,6 +171,7 @@ async def download_media(
     unique_id = f"streamly_{req_type}_{uuid.uuid4().hex[:8]}"
     temp_dir = tempfile.gettempdir()
     out_template = os.path.join(temp_dir, f"{unique_id}.%(ext)s")
+    ffmpeg_bin = get_ffmpeg_path()
 
     loop = asyncio.get_event_loop()
 
@@ -159,6 +188,7 @@ async def download_media(
             "no_warnings": True,
             "format": "bestaudio/best",
             "outtmpl": out_template,
+            "ffmpeg_location": ffmpeg_bin,
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
@@ -172,12 +202,16 @@ async def download_media(
 
         await loop.run_in_executor(None, run_mp3)
 
+        # Immediately purge raw intermediate stream (.webm/.m4a) keeping target .mp3
+        cleanup_temp_files(unique_id, keep_file=expected_file)
+
         if not os.path.exists(expected_file):
+            cleanup_temp_files(unique_id)
             raise HTTPException(status_code=500, detail="Failed to generate MP3 audio file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"audio_{clean_name}.mp3"
-        background_tasks.add_task(remove_temp_file, expected_file)
+        background_tasks.add_task(cleanup_temp_files, unique_id)
 
         return FileResponse(
             path=expected_file,
@@ -205,6 +239,7 @@ async def download_media(
             "format": format_spec,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
+            "ffmpeg_location": ffmpeg_bin,
         }
 
         def run_mp4():
@@ -213,12 +248,16 @@ async def download_media(
 
         await loop.run_in_executor(None, run_mp4)
 
+        # Immediately purge raw intermediate video/audio streams keeping target .mp4
+        cleanup_temp_files(unique_id, keep_file=expected_file)
+
         if not os.path.exists(expected_file):
+            cleanup_temp_files(unique_id)
             raise HTTPException(status_code=500, detail="Failed to generate MP4 video file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"video_{clean_name}.mp4"
-        background_tasks.add_task(remove_temp_file, expected_file)
+        background_tasks.add_task(cleanup_temp_files, unique_id)
 
         return FileResponse(
             path=expected_file,
