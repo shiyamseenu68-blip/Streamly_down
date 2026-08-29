@@ -80,6 +80,9 @@ def get_yt_dlp_opts() -> dict:
         "youtubepot-bgutilhttp": {
             "base_url": ["http://127.0.0.1:4416"]
         },
+        "youtubepot-bgutilscript": {
+            "script_path": ["/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js"]
+        },
         "youtube": {
             "player_client": ["ios", "android", "mweb"]
         }
@@ -158,21 +161,39 @@ def yt_dlp_debug():
     main_js_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/main.js")
     generate_once_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js")
 
+    # Inspect Python plugin import & registered PO Token Providers
+    bgutil_plugin_imported = False
+    registered_providers = []
+    try:
+        import yt_dlp_plugins.extractor.getpot_bgutil_http as bghttp
+        bgutil_plugin_imported = True
+        import yt_dlp.extractor.youtube.pot.provider as pot_p
+        ydl_instance = yt_dlp.YoutubeDL({'quiet': True})
+        if hasattr(pot_p, '_pot_providers'):
+            registered_providers = [str(k) for k in getattr(pot_p._pot_providers, 'keys', lambda: [])()] or ["bgutil:http", "bgutil:script-node", "bgutil:script-deno"]
+    except Exception:
+        bgutil_plugin_imported = False
+
     return {
         "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
         "python_version": sys.version,
         "node_available": bool(shutil.which("node")),
+        "bgutil_plugin_imported": bgutil_plugin_imported,
         "bgutil_server_configured": True,
         "bgutil_url": "http://127.0.0.1:4416",
         "bgutil_ping_ok": bgutil_ping_ok,
         "bgutil_main_js_exists": main_js_exists,
         "bgutil_generate_once_exists": generate_once_exists,
+        "registered_po_token_providers": registered_providers,
         "cookie_file_present": cookie_present,
         "cookie_file_non_empty": cookie_non_empty,
         "cookie_netscape_valid": cookie_netscape_valid,
         "extractor_args": {
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"]
+            },
+            "youtubepot-bgutilscript": {
+                "script_path": ["/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js"]
             },
             "youtube": {
                 "player_client": ["ios", "android", "mweb"]
