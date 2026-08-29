@@ -138,6 +138,14 @@ def yt_dlp_debug():
     cookie_path = "/tmp/cookies.txt"
     cookie_present = os.path.exists(cookie_path)
     cookie_non_empty = cookie_present and os.path.getsize(cookie_path) > 0
+    cookie_netscape_valid = False
+    if cookie_non_empty:
+        try:
+            with open(cookie_path, "r", encoding="utf-8", errors="ignore") as f:
+                first_lines = "".join([f.readline() for _ in range(5)])
+                cookie_netscape_valid = any(k in first_lines for k in ["Netscape", "# HTTP Cookie File", ".youtube.com", ".google.com"])
+        except Exception:
+            cookie_netscape_valid = False
 
     bgutil_ping_ok = False
     try:
@@ -147,6 +155,9 @@ def yt_dlp_debug():
     except Exception:
         bgutil_ping_ok = False
 
+    main_js_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/main.js")
+    generate_once_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js")
+
     return {
         "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
         "python_version": sys.version,
@@ -154,8 +165,11 @@ def yt_dlp_debug():
         "bgutil_server_configured": True,
         "bgutil_url": "http://127.0.0.1:4416",
         "bgutil_ping_ok": bgutil_ping_ok,
+        "bgutil_main_js_exists": main_js_exists,
+        "bgutil_generate_once_exists": generate_once_exists,
         "cookie_file_present": cookie_present,
         "cookie_file_non_empty": cookie_non_empty,
+        "cookie_netscape_valid": cookie_netscape_valid,
         "extractor_args": {
             "youtubepot-bgutilhttp": {
                 "base_url": ["http://127.0.0.1:4416"]

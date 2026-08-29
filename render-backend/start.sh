@@ -7,12 +7,26 @@ if [ ! -f "/root/bgutil-ytdlp-pot-provider/server/build/main.js" ]; then
     exit 1
 fi
 
+if [ ! -f "/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js" ]; then
+    echo "[Streamly Startup Error] Compiled generate_once.js not found at /root/bgutil-ytdlp-pot-provider/server/build/generate_once.js" >&2
+    exit 1
+fi
+
 # Cookie decoding logic (if YOUTUBE_COOKIES_BASE64 environment variable is present and non-empty)
 if [ -n "${YOUTUBE_COOKIES_BASE64:-}" ]; then
     echo "[Streamly Startup] YOUTUBE_COOKIES_BASE64 detected. Decoding into /tmp/cookies.txt..."
     if echo "$YOUTUBE_COOKIES_BASE64" | base64 -d > /tmp/cookies.txt 2>/dev/null; then
         chmod 600 /tmp/cookies.txt
-        echo "[Streamly Startup] YouTube cookies successfully decoded and permissions set to 600."
+        if [ -s /tmp/cookies.txt ]; then
+            if head -n 5 /tmp/cookies.txt | grep -q -E "(Netscape|# HTTP Cookie File|\.youtube\.com|\.google\.com)"; then
+                echo "[Streamly Startup] YouTube Netscape cookies.txt verified successfully."
+            else
+                echo "[Streamly Startup Warning] Decoded /tmp/cookies.txt is non-empty but does not match standard Netscape header format."
+            fi
+        else
+            echo "[Streamly Startup Error] Decoded /tmp/cookies.txt is 0 bytes." >&2
+            exit 1
+        fi
     else
         echo "[Streamly Startup Error] Failed to decode YOUTUBE_COOKIES_BASE64 variable." >&2
         exit 1
