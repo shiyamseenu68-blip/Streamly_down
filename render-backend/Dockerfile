@@ -1,22 +1,30 @@
 FROM python:3.11-slim
 
-# Install FFmpeg and system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Install system dependencies: ffmpeg, git, curl, and Node.js 20.x for JS challenge solving & PO token generation
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    git \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build official bgutil PO Token Provider HTTP server
+RUN git clone https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil-server && \
+    cd /opt/bgutil-server/server && \
+    npm install && \
+    npx tsc
+
+# Install Python dependencies including yt-dlp & bgutil-ytdlp-pot-provider plugin
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy FastAPI application files and startup script
 COPY . .
+RUN chmod +x /app/start.sh
 
-# Environment defaults
-ENV PORT=10000
 EXPOSE 10000
 
-# Start server using Gunicorn with Uvicorn workers
-CMD exec gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
+ENTRYPOINT ["/app/start.sh"]

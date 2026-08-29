@@ -42,20 +42,15 @@ def get_ffmpeg_path() -> str:
 def get_yt_dlp_base_opts() -> dict:
     ffmpeg_bin = get_ffmpeg_path()
     
-    # Official yt-dlp PO Token Provider & client fallback strategy
-    # Uses iOS/mweb/android client rotation to bypass botguard checks on cloud IPs
+    # Official yt-dlp PO Token Provider (bgutil http server on port 4416) & client fallback strategy
     extractor_args = {
+        "youtubepot-bgutilhttp": {
+            "base_url": ["http://127.0.0.1:4416"],
+        },
         "youtube": {
-            "player_client": ["ios", "mweb", "android", "tv", "web"],
+            "player_client": ["mweb", "ios", "web"],
         }
     }
-    
-    po_token = os.getenv("YT_DLP_PO_TOKEN")
-    visitor_data = os.getenv("YT_DLP_VISITOR_DATA")
-    if po_token:
-        extractor_args["youtube"]["po_token"] = [f"web+{po_token}"]
-    if visitor_data:
-        extractor_args["youtube"]["visitor_data"] = [visitor_data]
 
     return {
         "quiet": True,
@@ -63,6 +58,7 @@ def get_yt_dlp_base_opts() -> dict:
         "no_color": True,
         "nocheckcertificate": True,
         "ffmpeg_location": ffmpeg_bin,
+        "js_runtimes": ["node"],
         "extractor_args": extractor_args,
     }
 
