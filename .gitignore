@@ -23,6 +23,8 @@ diag-*.js
 .env.development
 .env.test
 .env.production
+cookies.txt
+*.cookies.txt
 
 # Vercel & IDE
 .vercel

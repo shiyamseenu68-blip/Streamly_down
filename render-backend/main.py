@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import asyncio
 import logging
+import urllib.request
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
@@ -70,23 +71,21 @@ class SafeDiagnosticLogger:
                 parts = safe_msg.split(term)
                 safe_msg = parts[0] + f"{term}[REDACTED]"
         
-        # Print complete trace to standard output for Render Dashboard Logs
         print(f"[yt-dlp {level}] {safe_msg}", flush=True)
 
-def get_yt_dlp_base_opts() -> dict:
+def get_yt_dlp_opts() -> dict:
     ffmpeg_bin = get_ffmpeg_path()
     
-    # Official yt-dlp PO Token Provider (bgutil http server on port 4416) & client fallback strategy
     extractor_args = {
         "youtubepot-bgutilhttp": {
-            "base_url": ["http://127.0.0.1:4416"],
+            "base_url": ["http://127.0.0.1:4416"]
         },
         "youtube": {
-            "player_client": ["mweb", "ios", "android", "web"],
+            "player_client": ["ios", "android", "mweb"]
         }
     }
 
-    return {
+    opts = {
         "quiet": False,
         "verbose": True,
         "logger": SafeDiagnosticLogger(),
@@ -94,9 +93,18 @@ def get_yt_dlp_base_opts() -> dict:
         "no_color": True,
         "nocheckcertificate": True,
         "ffmpeg_location": ffmpeg_bin,
-        "js_runtimes": {"node": {}},
+        "js_runtimes": {
+            "node": {}
+        },
         "extractor_args": extractor_args,
     }
+
+    # Dynamically attach cookiefile ONLY when /tmp/cookies.txt exists and is non-empty
+    cookie_path = "/tmp/cookies.txt"
+    if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
+        opts["cookiefile"] = cookie_path
+
+    return opts
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -125,6 +133,42 @@ def cleanup_temp_files(unique_id: str, keep_file: Optional[str] = None):
 def health_check():
     return {"status": "ok", "service": "streamly-backend", "version": "1.0.0"}
 
+@app.get("/api/yt-dlp-debug")
+def yt_dlp_debug():
+    cookie_path = "/tmp/cookies.txt"
+    cookie_present = os.path.exists(cookie_path)
+    cookie_non_empty = cookie_present and os.path.getsize(cookie_path) > 0
+
+    bgutil_ping_ok = False
+    try:
+        req = urllib.request.Request("http://127.0.0.1:4416/ping")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            bgutil_ping_ok = (resp.status == 200)
+    except Exception:
+        bgutil_ping_ok = False
+
+    return {
+        "yt_dlp_version": getattr(yt_dlp.version, "__version__", "unknown"),
+        "python_version": sys.version,
+        "node_available": bool(shutil.which("node")),
+        "bgutil_server_configured": True,
+        "bgutil_url": "http://127.0.0.1:4416",
+        "bgutil_ping_ok": bgutil_ping_ok,
+        "cookie_file_present": cookie_present,
+        "cookie_file_non_empty": cookie_non_empty,
+        "extractor_args": {
+            "youtubepot-bgutilhttp": {
+                "base_url": ["http://127.0.0.1:4416"]
+            },
+            "youtube": {
+                "player_client": ["ios", "android", "mweb"]
+            }
+        },
+        "js_runtimes": {
+            "node": {}
+        }
+    }
+
 @app.post("/api/analyze", dependencies=[Depends(verify_token)])
 async def analyze_url(req: AnalyzeRequest):
     url = req.url.strip()
@@ -133,7 +177,7 @@ async def analyze_url(req: AnalyzeRequest):
 
     logger.info(f"Starting metadata extraction for request URL host: {url.split('/')[2] if '/' in url else 'unknown'}")
 
-    ydl_opts = get_yt_dlp_base_opts()
+    ydl_opts = get_yt_dlp_opts()
     ydl_opts.update({
         "skip_download": True,
         "extract_flat": False,
@@ -242,7 +286,7 @@ async def download_media(
 
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp3")
 
-        ydl_opts = get_yt_dlp_base_opts()
+        ydl_opts = get_yt_dlp_opts()
         ydl_opts.update({
             "format": "bestaudio/best",
             "outtmpl": out_template,
@@ -292,7 +336,7 @@ async def download_media(
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp4")
         format_spec = f"bestvideo[height={target_height}]+bestaudio/bestvideo[height<={target_height}]+bestaudio/best[height<={target_height}]/best"
 
-        ydl_opts = get_yt_dlp_base_opts()
+        ydl_opts = get_yt_dlp_opts()
         ydl_opts.update({
             "format": format_spec,
             "outtmpl": out_template,
