@@ -8,7 +8,7 @@ import logging
 import time
 import urllib.request
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Header, Depends, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, Depends, Query, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import yt_dlp
@@ -18,6 +18,13 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [S
 logger = logging.getLogger("streamly")
 
 app = FastAPI(title="Streamly Media Backend", version="1.0.0")
+
+# Double Slash Normalization Middleware for proxy URLs (e.g. //api/analyze -> /api/analyze)
+@app.middleware("http")
+async def clean_double_slash_middleware(request: Request, call_next):
+    if "//" in request.url.path:
+        request.scope["path"] = request.url.path.replace("//", "/")
+    return await call_next(request)
 
 # Security Token Configuration
 API_SECRET = os.getenv("STREAMLY_API_SECRET", "streamly_test_secret")
@@ -174,10 +181,6 @@ def get_yt_dlp_opts() -> dict:
     if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
         opts["cookiefile"] = cookie_path
 
-    logger.info(f"[StreamlyDiagnostic] player_client = {player_clients}")
-    logger.info(f"[StreamlyDiagnostic] extractor_args = {extractor_args}")
-    logger.info(f"[StreamlyDiagnostic] bgutil status: ping_ok={bgutil_ok}")
-
     return opts
 
 class AnalyzeRequest(BaseModel):
@@ -275,7 +278,9 @@ async def analyze_url(req: AnalyzeRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required")
 
-    logger.info(f"[StreamlyDiagnostic] Starting metadata extraction for request URL: {url}")
+    request_id = uuid.uuid4().hex[:8]
+    logger.info(f"[StreamlyDiagnostic:{request_id}] === STARTING /api/analyze REQUEST ===")
+    logger.info(f"[StreamlyDiagnostic:{request_id}] URL = {url}")
 
     ydl_opts = get_yt_dlp_opts()
     ydl_opts.update({
@@ -283,11 +288,15 @@ async def analyze_url(req: AnalyzeRequest):
         "extract_flat": False,
     })
 
+    logger.info(f"[StreamlyDiagnostic:{request_id}] player_client = {ydl_opts.get('extractor_args', {}).get('youtube', {}).get('player_client')}")
+    logger.info(f"[StreamlyDiagnostic:{request_id}] extractor_args = {ydl_opts.get('extractor_args')}")
+    logger.info(f"[StreamlyDiagnostic:{request_id}] bgutil status: ping_ok={ensure_bgutil_server_running()}")
+
     try:
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False))
         if not info:
-            logger.error("[StreamlyDiagnostic] Extraction failed: info dict returned empty")
+            logger.error(f"[StreamlyDiagnostic:{request_id}] Extraction failed: info dict returned empty")
             raise HTTPException(status_code=400, detail="Failed to extract media information")
 
         platform = "instagram" if ("instagram.com" in url) else "youtube"
@@ -351,14 +360,14 @@ async def analyze_url(req: AnalyzeRequest):
             },
         }
 
-        logger.info(f"[StreamlyDiagnostic] selected client = {info.get('extractor_key') or 'Youtube'}")
-        logger.info(f"[StreamlyDiagnostic] format count = {len(info.get('formats', []))}")
-        logger.info(f"[StreamlyDiagnostic] Successfully extracted metadata. Title length: {len(metadata['title'])}, Video Formats: {len(video_formats)}, Audio Formats: {len(audio_formats)}")
+        logger.info(f"[StreamlyDiagnostic:{request_id}] selected client = {info.get('extractor_key') or 'Youtube'}")
+        logger.info(f"[StreamlyDiagnostic:{request_id}] format count = {len(info.get('formats', []))}")
+        logger.info(f"[StreamlyDiagnostic:{request_id}] Successfully extracted metadata. Title length: {len(metadata['title'])}, Video Formats: {len(video_formats)}, Audio Formats: {len(audio_formats)}")
         return {"success": True, "data": metadata}
 
     except Exception as e:
         err_msg = str(e)
-        logger.error(f"[StreamlyDiagnostic] Extraction error caught: {err_msg}")
+        logger.error(f"[StreamlyDiagnostic:{request_id}] Extraction error caught: {err_msg}")
         if "Private" in err_msg or "login" in err_msg or "Sign in to confirm" in err_msg:
             raise HTTPException(status_code=400, detail="This content is private or requires authentication")
         raise HTTPException(status_code=400, detail=f"Extraction failed: {err_msg}")
@@ -376,7 +385,7 @@ async def download_media(
     temp_dir = tempfile.gettempdir()
     out_template = os.path.join(temp_dir, f"{unique_id}.%(ext)s")
 
-    logger.info(f"[StreamlyDiagnostic] Starting download request: type={req_type}, quality={quality_label}")
+    logger.info(f"[StreamlyDiagnostic:{unique_id}] Starting download request: type={req_type}, quality={quality_label}")
 
     loop = asyncio.get_event_loop()
 
@@ -410,14 +419,14 @@ async def download_media(
 
         if not os.path.exists(expected_file):
             cleanup_temp_files(unique_id)
-            logger.error(f"[StreamlyDiagnostic] MP3 download failed: file {expected_file} was not generated")
+            logger.error(f"[StreamlyDiagnostic:{unique_id}] MP3 download failed: file {expected_file} was not generated")
             raise HTTPException(status_code=500, detail="Failed to generate MP3 audio file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"audio_{clean_name}.mp3"
         background_tasks.add_task(cleanup_temp_files, unique_id)
 
-        logger.info(f"[StreamlyDiagnostic] MP3 download completed successfully: filename={filename}")
+        logger.info(f"[StreamlyDiagnostic:{unique_id}] MP3 download completed successfully: filename={filename}")
         return FileResponse(
             path=expected_file,
             filename=filename,
@@ -456,14 +465,14 @@ async def download_media(
 
         if not os.path.exists(expected_file):
             cleanup_temp_files(unique_id)
-            logger.error(f"[StreamlyDiagnostic] MP4 download failed: file {expected_file} was not generated")
+            logger.error(f"[StreamlyDiagnostic:{unique_id}] MP4 download failed: file {expected_file} was not generated")
             raise HTTPException(status_code=500, detail="Failed to generate MP4 video file")
 
         clean_name = sanitize_filename(quality_label)
         filename = f"video_{clean_name}.mp4"
         background_tasks.add_task(cleanup_temp_files, unique_id)
 
-        logger.info(f"[StreamlyDiagnostic] MP4 download completed successfully: filename={filename}")
+        logger.info(f"[StreamlyDiagnostic:{unique_id}] MP4 download completed successfully: filename={filename}")
         return FileResponse(
             path=expected_file,
             filename=filename,

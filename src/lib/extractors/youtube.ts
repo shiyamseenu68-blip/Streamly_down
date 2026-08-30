@@ -51,7 +51,7 @@ function getQualityLabel(height: number): string {
 }
 
 /**
- * Extracts real YouTube metadata using python yt-dlp module
+ * Extracts real YouTube metadata using python yt-dlp module with robust player_client fallback strategy
  */
 export async function extractYouTubeMetadata(url: string): Promise<YouTubeExtractionResponse> {
   try {
@@ -62,6 +62,8 @@ export async function extractYouTubeMetadata(url: string): Promise<YouTubeExtrac
       "--no-warnings",
       "--no-call-home",
       "--no-check-certificates",
+      "--extractor-args",
+      "youtube:player_client=mweb,web_embedded,android_vr,android,ios;youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
       url.trim(),
     ];
 

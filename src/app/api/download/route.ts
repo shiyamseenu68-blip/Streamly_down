@@ -38,11 +38,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const backendUrl = process.env.STREAMLY_BACKEND_URL;
+    const rawBackendUrl = process.env.STREAMLY_BACKEND_URL;
     const apiSecret = process.env.STREAMLY_API_SECRET || "";
 
     // 4. Production Proxy to Render Python Backend (if configured)
-    if (backendUrl) {
+    if (rawBackendUrl) {
+      const backendUrl = rawBackendUrl.trim().replace(/\/+$/, "");
       const headers: Record<string, string> = {};
       if (apiSecret) {
         headers["Authorization"] = `Bearer ${apiSecret}`;
