@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { UrlForm } from "@/components/UrlForm";
 import { MediaCard } from "@/components/MediaCard";
 import { StreamMergeIntro } from "@/components/StreamMergeIntro";
+import { SplashIntro } from "@/components/SplashIntro";
 import { ValidationResult, MediaMetadata } from "@/lib/types/media";
 import {
   Youtube,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const [showSplash, setShowSplash] = useState(true);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -88,6 +90,9 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 overflow-x-hidden selection:bg-cyan-500 selection:text-white">
+      {/* 1. Cinematic Splash Intro Overlay (Plays Before Page Reveals) */}
+      {showSplash && <SplashIntro onComplete={() => setShowSplash(false)} />}
+
       <Header />
 
       {/* Decorative Premium Background Glow Orbs */}
