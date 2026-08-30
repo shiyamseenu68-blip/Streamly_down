@@ -6,7 +6,21 @@ import { Footer } from "@/components/Footer";
 import { UrlForm } from "@/components/UrlForm";
 import { MediaCard } from "@/components/MediaCard";
 import { ValidationResult, MediaMetadata } from "@/lib/types/media";
-import { Youtube, Instagram, Smartphone, Sparkles, AlertCircle, ShieldCheck, Zap } from "lucide-react";
+import {
+  Youtube,
+  Instagram,
+  Smartphone,
+  Sparkles,
+  AlertCircle,
+  ShieldCheck,
+  Zap,
+  Film,
+  Music,
+  ArrowDownCircle,
+  CheckCircle2,
+  Sliders,
+  Layers
+} from "lucide-react";
 
 export default function Home() {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
@@ -72,36 +86,56 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 overflow-x-hidden selection:bg-cyan-500 selection:text-white">
       <Header />
 
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-start gap-8 sm:gap-10">
-        {/* Stage 8 Hero Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-800/60 text-cyan-300 text-xs font-semibold shadow-lg shadow-cyan-950/30 animate-fade-in">
-          <Zap className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Stage 8 Active — Premium Responsive UI/UX System</span>
-        </div>
+      {/* Decorative Background Glow Orbs */}
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-red-600/15 via-purple-600/15 to-cyan-600/15 blur-[120px] pointer-events-none -z-10 rounded-full" />
+      <div className="fixed bottom-10 left-1/4 w-[400px] h-[250px] bg-cyan-600/10 blur-[100px] pointer-events-none -z-10 rounded-full" />
 
-        {/* Hero Title */}
-        <div className="text-center max-w-2xl animate-fade-in">
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.15]">
-            Modern Media Downloader for{" "}
-            <span className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">
-              YouTube
-            </span>{" "}
-            &{" "}
-            <span className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 bg-clip-text text-transparent">
-              Instagram
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-start gap-8 sm:gap-12">
+        {/* Animated Intro Hero Section */}
+        <section className="text-center max-w-3xl flex flex-col items-center gap-5 relative">
+          {/* Glowing Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-950/80 via-zinc-900 to-purple-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-extrabold shadow-xl shadow-cyan-950/40 animate-fade-in backdrop-blur-md">
+            <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <span>Next-Gen Media Downloader & Extraction Engine</span>
+            <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-[10px] uppercase font-mono text-cyan-200">
+              v1.0 Live
             </span>
+          </div>
+
+          {/* Hero Main Heading with Animated Gradient Text */}
+          <h1 className="text-3xl sm:text-6xl font-black tracking-tight leading-[1.12]">
+            Download <span className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-400 bg-clip-text text-transparent">YouTube</span> &{" "}
+            <span className="bg-gradient-to-r from-purple-400 via-pink-500 to-orange-400 bg-clip-text text-transparent">Instagram</span> Media in{" "}
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-emerald-400 bg-clip-text text-transparent">High Quality</span>
           </h1>
 
-          <p className="mt-4 text-sm sm:text-base text-zinc-400 max-w-md mx-auto leading-relaxed">
-            Paste any public YouTube or Instagram link to analyze media, inspect genuine bitrates, and download MP3 or MP4 files instantly.
+          {/* Intro Description */}
+          <p className="text-sm sm:text-lg text-zinc-400 max-w-xl mx-auto leading-relaxed">
+            Extract 720p, 1080p, 4K MP4 videos & 320kbps MP3 audio streams instantly with automatic FFmpeg stream merging.
           </p>
-        </div>
 
-        {/* Interactive URL Form */}
-        <div className="w-full">
+          {/* Interactive Feature Pills */}
+          <div className="flex items-center justify-center gap-2.5 flex-wrap pt-2 text-xs font-semibold text-zinc-300">
+            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
+              <Film className="w-3.5 h-3.5 text-cyan-400" />
+              <span>4K / 1080p / 720p MP4</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
+              <Music className="w-3.5 h-3.5 text-purple-400" />
+              <span>320kbps MP3 Audio</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>No Registration Required</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Interactive URL Form Container */}
+        <div className="w-full relative z-10">
           <UrlForm
             onValidate={handleAnalyze}
             result={validationResult}
@@ -112,50 +146,62 @@ export default function Home() {
 
         {/* Extraction Error Alert Banner */}
         {errorMsg && (
-          <div className="w-full max-w-2xl p-4 sm:p-5 rounded-2xl bg-rose-950/50 border border-rose-500/50 text-rose-300 text-xs sm:text-sm flex items-center gap-3 shadow-xl shadow-rose-950/20 animate-fade-in">
+          <div className="w-full max-w-2xl p-4 sm:p-5 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-300 text-xs sm:text-sm flex items-center gap-3 shadow-xl shadow-rose-950/30 animate-fade-in">
             <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
             <div className="flex flex-col">
-              <span className="font-bold text-rose-200">Extraction Error</span>
+              <span className="font-extrabold text-rose-200">Extraction Notice</span>
               <span>{errorMsg}</span>
             </div>
           </div>
         )}
 
-        {/* Real Extracted YouTube / Instagram Metadata Card */}
+        {/* Real Extracted YouTube / Instagram Media Card */}
         {metadata && <MediaCard metadata={metadata} />}
 
-        {/* Premium Features Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl mt-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col items-start gap-2.5 hover:border-zinc-700 transition-colors">
-            <div className="p-2.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+        {/* Download Features & Quality Highlights Grid */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mt-4">
+          <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/90 flex flex-col items-start gap-3 hover:border-red-500/40 transition-all group backdrop-blur-sm">
+            <div className="p-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 group-hover:scale-110 transition-transform">
               <Youtube className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-zinc-200">YouTube MP3 & MP4 HD</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Extracts 128-320kbps MP3 audio & merges 720p/1080p/4K MP4 video streams via FFmpeg.
-            </p>
+            <div>
+              <h3 className="text-sm font-extrabold text-zinc-100 flex items-center gap-2">
+                YouTube MP4 & MP3
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed mt-1">
+                Extracts 360p, 720p HD, 1080p Full HD & 4K video formats alongside 128kbps-320kbps MP3 audio.
+              </p>
+            </div>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col items-start gap-2.5 hover:border-zinc-700 transition-colors">
-            <div className="p-2.5 rounded-xl bg-pink-500/10 text-pink-400 border border-pink-500/20">
+          <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/90 flex flex-col items-start gap-3 hover:border-pink-500/40 transition-all group backdrop-blur-sm">
+            <div className="p-3 rounded-xl bg-pink-500/10 text-pink-400 border border-pink-500/20 group-hover:scale-110 transition-transform">
               <Instagram className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-zinc-200">Instagram Reels & Posts</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Extracts public Instagram Reels and video posts directly into playable MP4 files.
-            </p>
+            <div>
+              <h3 className="text-sm font-extrabold text-zinc-100 flex items-center gap-2">
+                Instagram Reels & Posts
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed mt-1">
+                Downloads public Instagram Reels and video posts straight to playable MP4 format.
+              </p>
+            </div>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col items-start gap-2.5 hover:border-zinc-700 transition-colors">
-            <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              <Smartphone className="w-5 h-5" />
+          <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/90 flex flex-col items-start gap-3 hover:border-cyan-500/40 transition-all group backdrop-blur-sm">
+            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-110 transition-transform">
+              <Layers className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-zinc-200">100% Mobile Ready</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Native touch targets ($\ge 44$px) and zero horizontal scroll across 320px to 1440px+ screens.
-            </p>
+            <div>
+              <h3 className="text-sm font-extrabold text-zinc-100 flex items-center gap-2">
+                FFmpeg Stream Merging
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed mt-1">
+                Serverless high-res video and audio stream merging guarantees clean, playable media files.
+              </p>
+            </div>
           </div>
-        </div>
+        </section>
       </main>
 
       <Footer />
