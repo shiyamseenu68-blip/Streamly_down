@@ -149,7 +149,7 @@ def get_yt_dlp_opts() -> dict:
             "script_path": ["/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js"]
         },
         "youtube": {
-            "player_client": ["ios", "android", "mweb"]
+            "player_client": ["mweb", "web_embedded", "android_vr", "android", "ios"]
         }
     }
 
@@ -255,7 +255,7 @@ def yt_dlp_debug():
                 "script_path": ["/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js"]
             },
             "youtube": {
-                "player_client": ["ios", "android", "mweb"]
+                "player_client": ["mweb", "web_embedded", "android_vr", "android", "ios"]
             }
         },
         "js_runtimes": {
