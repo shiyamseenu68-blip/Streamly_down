@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { UrlForm } from "@/components/UrlForm";
 import { MediaCard } from "@/components/MediaCard";
+import { StreamMergeIntro } from "@/components/StreamMergeIntro";
 import { ValidationResult, MediaMetadata } from "@/lib/types/media";
 import {
   Youtube,
@@ -89,23 +90,24 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 overflow-x-hidden selection:bg-cyan-500 selection:text-white">
       <Header />
 
-      {/* Decorative Background Glow Orbs */}
-      <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-red-600/15 via-purple-600/15 to-cyan-600/15 blur-[120px] pointer-events-none -z-10 rounded-full" />
-      <div className="fixed bottom-10 left-1/4 w-[400px] h-[250px] bg-cyan-600/10 blur-[100px] pointer-events-none -z-10 rounded-full" />
+      {/* Decorative Premium Background Glow Orbs */}
+      <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 blur-[140px] pointer-events-none -z-10 rounded-full" />
+      <div className="fixed bottom-10 left-1/4 w-[450px] h-[280px] bg-cyan-600/15 blur-[120px] pointer-events-none -z-10 rounded-full" />
+      <div className="fixed top-1/3 right-10 w-[350px] h-[250px] bg-pink-600/10 blur-[100px] pointer-events-none -z-10 rounded-full" />
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-start gap-8 sm:gap-12">
         {/* Animated Intro Hero Section */}
         <section className="text-center max-w-3xl flex flex-col items-center gap-5 relative">
           {/* Glowing Pill Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-950/80 via-zinc-900 to-purple-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-extrabold shadow-xl shadow-cyan-950/40 animate-fade-in backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-4.5 py-2 rounded-full bg-gradient-to-r from-cyan-950/90 via-zinc-900 to-purple-950/90 border border-cyan-500/50 text-cyan-300 text-xs font-extrabold shadow-2xl shadow-cyan-950/50 animate-fade-in backdrop-blur-md">
             <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span>Next-Gen Media Downloader & Extraction Engine</span>
-            <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-[10px] uppercase font-mono text-cyan-200">
+            <span>Next-Gen Media Downloader & Stream Merging Engine</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-[10px] uppercase font-mono text-cyan-200 border border-cyan-500/30">
               v1.0 Live
             </span>
           </div>
 
-          {/* Hero Main Heading with Animated Gradient Text */}
+          {/* Hero Main Heading with Animated Premium Gradient Text */}
           <h1 className="text-3xl sm:text-6xl font-black tracking-tight leading-[1.12]">
             Download <span className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-400 bg-clip-text text-transparent">YouTube</span> &{" "}
             <span className="bg-gradient-to-r from-purple-400 via-pink-500 to-orange-400 bg-clip-text text-transparent">Instagram</span> Media in{" "}
@@ -119,16 +121,16 @@ export default function Home() {
 
           {/* Interactive Feature Pills */}
           <div className="flex items-center justify-center gap-2.5 flex-wrap pt-2 text-xs font-semibold text-zinc-300">
-            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
-              <Film className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800/90 flex items-center gap-2 shadow-sm backdrop-blur-sm">
+              <Film className="w-4 h-4 text-cyan-400" />
               <span>4K / 1080p / 720p MP4</span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
-              <Music className="w-3.5 h-3.5 text-purple-400" />
+            <div className="px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800/90 flex items-center gap-2 shadow-sm backdrop-blur-sm">
+              <Music className="w-4 h-4 text-purple-400" />
               <span>320kbps MP3 Audio</span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center gap-1.5 shadow-sm">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800/90 flex items-center gap-2 shadow-sm backdrop-blur-sm">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>No Registration Required</span>
             </div>
           </div>
@@ -157,6 +159,9 @@ export default function Home() {
 
         {/* Real Extracted YouTube / Instagram Media Card */}
         {metadata && <MediaCard metadata={metadata} />}
+
+        {/* Interactive Video + Music Merging Intro Showcase */}
+        {!metadata && <StreamMergeIntro />}
 
         {/* Download Features & Quality Highlights Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mt-4">
