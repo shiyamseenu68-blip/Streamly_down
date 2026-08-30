@@ -181,6 +181,20 @@ def is_private_content_error(msg: str) -> bool:
             "requires authentication" in low or "members-only" in low)
 
 
+_RETRYABLE_EXTRA_SIGNALS = [
+    "requested format is not available",
+    "no video formats",
+    "no formats found",
+    "unable to extract",
+]
+
+
+def is_retryable_extraction_error(msg: str) -> bool:
+    """Bot challenges plus 'no formats' failures that a different client may resolve."""
+    low = (msg or "").lower()
+    return is_bot_detection_error(msg) or any(s in low for s in _RETRYABLE_EXTRA_SIGNALS)
+
+
 def get_yt_dlp_opts(player_client_override: Optional[list] = None) -> dict:
     # Ensure local bgutil HTTP server is listening on port 4416
     bgutil_ok = ensure_bgutil_server_running()
@@ -241,8 +255,8 @@ def download_with_client_rotation(url: str, base_update: dict, unique_id: str):
             return
         except Exception as e:
             last_err = e
-            if is_bot_detection_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
-                logger.warning(f"[StreamlyDiagnostic:{unique_id}] Bot challenge on attempt {attempt + 1}; rotating player_client...")
+            if is_retryable_extraction_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
+                logger.warning(f"[StreamlyDiagnostic:{unique_id}] Retryable error on attempt {attempt + 1} ({e}); rotating player_client...")
                 continue
             raise
     if last_err:
@@ -371,8 +385,8 @@ async def analyze_url(req: AnalyzeRequest):
             except Exception as e:
                 last_err = e
                 logger.error(f"[StreamlyDiagnostic:{request_id}] attempt {attempt + 1} failed: {e}")
-                if is_bot_detection_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
-                    logger.warning(f"[StreamlyDiagnostic:{request_id}] Bot challenge detected; rotating player_client...")
+                if is_retryable_extraction_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
+                    logger.warning(f"[StreamlyDiagnostic:{request_id}] Retryable error; rotating player_client...")
                     continue
                 raise
 
