@@ -1,5 +1,5 @@
 import React from "react";
-import { ShieldCheck, Heart } from "lucide-react";
+import { ShieldCheck, Heart, Sparkles } from "lucide-react";
 
 export function Footer() {
   return (
@@ -10,10 +10,13 @@ export function Footer() {
           <span>No login or authentication required • Safe & Private</span>
         </div>
 
-        <div className="flex items-center gap-4 text-zinc-500">
+        {/* Small Watermark Badge */}
+        <div className="flex items-center gap-2 text-zinc-300 font-semibold">
           <span>© {new Date().getFullYear()} STREAMLY</span>
           <span>•</span>
-          <span>YouTube & Instagram Downloader</span>
+          <span className="flex items-center gap-1 text-cyan-400">
+            <Sparkles className="w-3.5 h-3.5" /> Created by Shiyam S
+          </span>
         </div>
       </div>
     </footer>

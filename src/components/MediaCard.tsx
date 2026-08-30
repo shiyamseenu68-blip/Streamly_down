@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MediaMetadata } from "@/lib/types/media";
 import {
   Clock,
@@ -16,7 +16,10 @@ import {
   AlertCircle,
   CheckCircle2,
   Film,
-  ArrowDownCircle
+  ArrowDownCircle,
+  Zap,
+  Activity,
+  Check
 } from "lucide-react";
 
 interface MediaCardProps {
@@ -39,6 +42,7 @@ export function MediaCard({ metadata }: MediaCardProps) {
   const isInstagram = metadata.platform === "instagram";
   const [activeTab, setActiveTab] = useState<"video" | "audio">("video");
   const [downloadingQuality, setDownloadingQuality] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStep, setDownloadStep] = useState<string>("");
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
@@ -50,15 +54,26 @@ export function MediaCard({ metadata }: MediaCardProps) {
     setDownloadingQuality(qualityLabel);
     setDownloadError(null);
     setDownloadSuccess(null);
-    setDownloadStep("Initializing high-speed stream...");
+    setDownloadProgress(10);
+    setDownloadStep("Initializing high-speed media stream...");
 
-    // Simulated animated progress steps for visual feedback
+    // Simulated high-tech progress counter and step messages
+    const progressInterval = setInterval(() => {
+      setDownloadProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(progressInterval);
+          return 95;
+        }
+        return prev + 5;
+      });
+    }, 150);
+
     const stepTimer1 = setTimeout(() => {
-      setDownloadStep("Processing media codecs with FFmpeg...");
+      setDownloadStep("Processing codecs & merging channels with FFmpeg...");
     }, 1200);
 
     const stepTimer2 = setTimeout(() => {
-      setDownloadStep("Finalizing stream file & starting download!");
+      setDownloadStep("Finalizing stream file & delivering download...");
     }, 2800);
 
     try {
@@ -72,19 +87,24 @@ export function MediaCard({ metadata }: MediaCardProps) {
       document.body.removeChild(link);
 
       setTimeout(() => {
+        clearInterval(progressInterval);
         clearTimeout(stepTimer1);
         clearTimeout(stepTimer2);
+        setDownloadProgress(100);
         const typeLabel = type.toUpperCase();
-        setDownloadSuccess(`Successfully initiated ${typeLabel} download (${qualityLabel})! Check your browser downloads.`);
+        setDownloadSuccess(`Successfully downloaded ${typeLabel} (${qualityLabel})! Check your browser downloads.`);
         setDownloadingQuality(null);
         setDownloadStep("");
+        setDownloadProgress(0);
       }, 3500);
     } catch (err: any) {
+      clearInterval(progressInterval);
       clearTimeout(stepTimer1);
       clearTimeout(stepTimer2);
       setDownloadError(`Failed to initiate download. Please try again.`);
       setDownloadingQuality(null);
       setDownloadStep("");
+      setDownloadProgress(0);
     }
   };
 
@@ -104,8 +124,11 @@ export function MediaCard({ metadata }: MediaCardProps) {
             <span className="text-[10px] text-zinc-400">FFmpeg Ready • Genuine Formats</span>
           </div>
         </div>
-        <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 border border-cyan-700/60 px-3 py-1 rounded-full font-semibold shadow-inner">
-          ID: {metadata.id}
+
+        {/* Small Watermark Badge */}
+        <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 border border-cyan-700/60 px-3 py-1 rounded-full font-semibold shadow-inner flex items-center gap-1">
+          <Sparkles className="w-3 h-3 text-cyan-400" />
+          <span>Shiyam S Engine</span>
         </span>
       </div>
 
@@ -236,35 +259,45 @@ export function MediaCard({ metadata }: MediaCardProps) {
           </div>
         )}
 
-        {/* Global Active Download Animation Card */}
+        {/* Global Active High-Tech Download Animation Card */}
         {downloadingQuality && (
-          <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-cyan-950/80 via-zinc-900 to-purple-950/80 border border-cyan-500/40 shadow-xl shadow-cyan-950/30 animate-pulse">
+          <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-cyan-950/90 via-zinc-900 to-purple-950/90 border border-cyan-500/50 shadow-2xl shadow-cyan-950/40 animate-fade-in relative overflow-hidden">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
+                {/* Glowing Pulse Radar Ring */}
                 <div className="relative flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                  <div className="w-11 h-11 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
                   <ArrowDownCircle className="w-5 h-5 text-cyan-400 absolute" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-white flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-white flex items-center gap-2">
                     Downloading {activeTab.toUpperCase()} ({downloadingQuality})
-                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] uppercase font-mono">
-                      In Progress
+                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] uppercase font-mono border border-cyan-500/30">
+                      Processing Stream
                     </span>
                   </span>
-                  <span className="text-[11px] text-cyan-300/90 font-mono mt-0.5">
-                    {downloadStep || "Preparing stream transfer..."}
+                  <span className="text-[11px] text-cyan-300/90 font-mono mt-0.5 flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                    <span>{downloadStep || "Preparing stream transfer..."}</span>
                   </span>
                 </div>
               </div>
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">Processing</span>
+
+              {/* Progress Percentage Counter */}
+              <div className="flex flex-col items-end shrink-0">
+                <span className="text-lg font-black text-cyan-400 font-mono">
+                  {downloadProgress}%
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">~ 14.8 MB/s</span>
               </div>
             </div>
-            {/* Animated Progress Bar */}
-            <div className="w-full h-1.5 bg-zinc-950 rounded-full mt-3.5 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-full animate-pulse transition-all duration-1000 w-full" />
+
+            {/* Multi-Color Glowing Progress Bar */}
+            <div className="w-full h-2 bg-zinc-950 rounded-full mt-4 overflow-hidden border border-zinc-800 p-0.5 shadow-inner">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full transition-all duration-200 shadow-md shadow-purple-500/50"
+                style={{ width: `${downloadProgress}%` }}
+              />
             </div>
           </div>
         )}

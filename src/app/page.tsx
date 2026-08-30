@@ -21,7 +21,8 @@ import {
   ArrowDownCircle,
   CheckCircle2,
   Sliders,
-  Layers
+  Layers,
+  Heart
 } from "lucide-react";
 
 export default function Home() {
@@ -94,6 +95,12 @@ export default function Home() {
       {showSplash && <SplashIntro onComplete={() => setShowSplash(false)} />}
 
       <Header />
+
+      {/* Floating Watermark Badge - Created by Shiyam S */}
+      <div className="fixed bottom-5 right-5 z-40 hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-cyan-500/40 text-cyan-300 text-xs font-bold shadow-xl shadow-cyan-950/40 backdrop-blur-md hover:scale-105 transition-all">
+        <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+        <span>Created by Shiyam S</span>
+      </div>
 
       {/* Decorative Premium Background Glow Orbs */}
       <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-r from-red-600/20 via-purple-600/20 to-cyan-600/20 blur-[140px] pointer-events-none -z-10 rounded-full" />

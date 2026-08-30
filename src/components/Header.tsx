@@ -16,8 +16,8 @@ export function Header() {
             <span className="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
               STREAMLY
             </span>
-            <span className="text-[10px] text-zinc-400 font-medium tracking-wide uppercase hidden sm:inline">
-              Media Downloader
+            <span className="text-[10px] text-cyan-400 font-bold tracking-wide uppercase flex items-center gap-1">
+              <span>Created by Shiyam S</span>
             </span>
           </div>
         </div>
