@@ -63,7 +63,7 @@ export async function extractYouTubeMetadata(url: string): Promise<YouTubeExtrac
       "--no-call-home",
       "--no-check-certificates",
       "--extractor-args",
-      "youtube:player_client=mweb,web_embedded,android_vr,android,ios;youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+      "youtube:player_client=web_embedded,mweb,android_vr,android;youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
       url.trim(),
     ];
 

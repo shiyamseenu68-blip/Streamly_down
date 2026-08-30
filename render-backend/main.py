@@ -148,7 +148,7 @@ def get_yt_dlp_opts() -> dict:
 
     ffmpeg_bin = get_ffmpeg_path()
     
-    player_clients = ["mweb", "web_embedded", "android_vr", "android", "ios"]
+    player_clients = ["web_embedded", "mweb", "android_vr", "android"]
 
     extractor_args = {
         "youtubepot-bgutilhttp": {
@@ -264,7 +264,7 @@ def yt_dlp_debug():
                 "script_path": ["/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js"]
             },
             "youtube": {
-                "player_client": ["mweb", "web_embedded", "android_vr", "android", "ios"]
+                "player_client": ["web_embedded", "mweb", "android_vr", "android"]
             }
         },
         "js_runtimes": {
