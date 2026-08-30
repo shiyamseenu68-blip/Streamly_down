@@ -38,12 +38,20 @@ export async function POST(request: NextRequest) {
 
       const proxyJson = await proxyRes.json();
       if (!proxyRes.ok || !proxyJson.success) {
+        const detail: string = proxyJson.detail || proxyJson.error?.message || "";
+        const lower = detail.toLowerCase();
+        let code = "EXTRACTION_FAILED";
+        if (proxyRes.status === 429 || lower.includes("not a bot") || lower.includes("bot verification")) {
+          code = "BOT_DETECTED";
+        } else if (lower.includes("private") || lower.includes("authentication")) {
+          code = "PRIVATE_CONTENT";
+        }
         return NextResponse.json(
           {
             success: false,
             error: {
-              code: proxyJson.detail?.includes("private") ? "PRIVATE_CONTENT" : "EXTRACTION_FAILED",
-              message: proxyJson.detail || proxyJson.error?.message || "Failed to extract media details from remote service.",
+              code,
+              message: detail || "Failed to extract media details from remote service.",
             },
           },
           { status: proxyRes.status || 400 }

@@ -112,6 +112,8 @@ def ensure_bgutil_server_running() -> bool:
 
 @app.on_event("startup")
 def on_startup():
+    if API_SECRET == "streamly_test_secret":
+        logger.warning("[StreamlyDiagnostic] STREAMLY_API_SECRET is using the insecure default value. Set a strong secret in production.")
     ensure_bgutil_server_running()
 
 class SafeDiagnosticLogger:
@@ -142,13 +144,50 @@ class SafeDiagnosticLogger:
         
         print(f"[yt-dlp {level}] {safe_msg}", flush=True)
 
-def get_yt_dlp_opts() -> dict:
+# YouTube bot-detection handling ------------------------------------------------
+PLAYER_CLIENT_FALLBACKS = [
+    ["web_embedded", "mweb", "android_vr", "android"],
+    ["android", "android_vr"],
+    ["tv_embedded", "web_embedded"],
+    ["ios", "mweb"],
+]
+
+BOT_DETECTION_MESSAGE = (
+    "YouTube is currently blocking automated requests from this server (bot "
+    "verification). Please retry in a moment. If this persists, the backend "
+    "needs fresh YouTube cookies (YOUTUBE_COOKIES_BASE64) or a residential "
+    "proxy (YTDLP_PROXY)."
+)
+
+_BOT_ERROR_SIGNALS = [
+    "sign in to confirm you're not a bot",
+    "confirm you\u2019re not a bot",
+    "confirm you're not a bot",
+    "not a bot",
+    "http error 429",
+    "too many requests",
+    "sign in to confirm your age",
+]
+
+
+def is_bot_detection_error(msg: str) -> bool:
+    low = (msg or "").lower()
+    return any(sig in low for sig in _BOT_ERROR_SIGNALS)
+
+
+def is_private_content_error(msg: str) -> bool:
+    low = (msg or "").lower()
+    return ("private" in low or "login required" in low or
+            "requires authentication" in low or "members-only" in low)
+
+
+def get_yt_dlp_opts(player_client_override: Optional[list] = None) -> dict:
     # Ensure local bgutil HTTP server is listening on port 4416
     bgutil_ok = ensure_bgutil_server_running()
 
     ffmpeg_bin = get_ffmpeg_path()
-    
-    player_clients = ["web_embedded", "mweb", "android_vr", "android"]
+
+    player_clients = player_client_override or ["web_embedded", "mweb", "android_vr", "android"]
 
     extractor_args = {
         "youtubepot-bgutilhttp": {
@@ -168,7 +207,8 @@ def get_yt_dlp_opts() -> dict:
         "logger": SafeDiagnosticLogger(),
         "no_warnings": False,
         "no_color": True,
-        "nocheckcertificate": True,
+        # TLS verification stays on by default; only disable when explicitly opted in.
+        "nocheckcertificate": os.getenv("YTDLP_NO_CHECK_CERT", "0") == "1",
         "ffmpeg_location": ffmpeg_bin,
         "js_runtimes": {
             "node": {}
@@ -176,12 +216,37 @@ def get_yt_dlp_opts() -> dict:
         "extractor_args": extractor_args,
     }
 
+    # Route through a residential/rotating proxy to bypass datacenter-IP bot blocks.
+    proxy = os.getenv("YTDLP_PROXY") or os.getenv("YT_PROXY")
+    if proxy:
+        opts["proxy"] = proxy.strip()
+
     # Dynamically attach cookiefile ONLY when /tmp/cookies.txt exists and is non-empty
     cookie_path = "/tmp/cookies.txt"
     if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
         opts["cookiefile"] = cookie_path
 
     return opts
+
+
+def download_with_client_rotation(url: str, base_update: dict, unique_id: str):
+    """Run a yt-dlp download, rotating player_client on YouTube bot challenges."""
+    last_err = None
+    for attempt, clients in enumerate(PLAYER_CLIENT_FALLBACKS):
+        ydl_opts = get_yt_dlp_opts(player_client_override=clients)
+        ydl_opts.update(base_update)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            return
+        except Exception as e:
+            last_err = e
+            if is_bot_detection_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
+                logger.warning(f"[StreamlyDiagnostic:{unique_id}] Bot challenge on attempt {attempt + 1}; rotating player_client...")
+                continue
+            raise
+    if last_err:
+        raise last_err
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -282,20 +347,38 @@ async def analyze_url(req: AnalyzeRequest):
     logger.info(f"[StreamlyDiagnostic:{request_id}] === STARTING /api/analyze REQUEST ===")
     logger.info(f"[StreamlyDiagnostic:{request_id}] URL = {url}")
 
-    ydl_opts = get_yt_dlp_opts()
-    ydl_opts.update({
-        "skip_download": True,
-        "extract_flat": False,
-    })
-
-    logger.info(f"[StreamlyDiagnostic:{request_id}] player_client = {ydl_opts.get('extractor_args', {}).get('youtube', {}).get('player_client')}")
-    logger.info(f"[StreamlyDiagnostic:{request_id}] extractor_args = {ydl_opts.get('extractor_args')}")
     logger.info(f"[StreamlyDiagnostic:{request_id}] bgutil status: ping_ok={ensure_bgutil_server_running()}")
 
+    loop = asyncio.get_event_loop()
+    info = None
+    last_err = None
+
     try:
-        loop = asyncio.get_event_loop()
-        info = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False))
+        for attempt, clients in enumerate(PLAYER_CLIENT_FALLBACKS):
+            ydl_opts = get_yt_dlp_opts(player_client_override=clients)
+            ydl_opts.update({
+                "skip_download": True,
+                "extract_flat": False,
+            })
+            logger.info(f"[StreamlyDiagnostic:{request_id}] attempt {attempt + 1}/{len(PLAYER_CLIENT_FALLBACKS)} player_client = {clients}")
+            try:
+                info = await loop.run_in_executor(
+                    None,
+                    lambda o=ydl_opts: yt_dlp.YoutubeDL(o).extract_info(url, download=False),
+                )
+                if info:
+                    break
+            except Exception as e:
+                last_err = e
+                logger.error(f"[StreamlyDiagnostic:{request_id}] attempt {attempt + 1} failed: {e}")
+                if is_bot_detection_error(str(e)) and attempt < len(PLAYER_CLIENT_FALLBACKS) - 1:
+                    logger.warning(f"[StreamlyDiagnostic:{request_id}] Bot challenge detected; rotating player_client...")
+                    continue
+                raise
+
         if not info:
+            if last_err and is_bot_detection_error(str(last_err)):
+                raise HTTPException(status_code=429, detail=BOT_DETECTION_MESSAGE)
             logger.error(f"[StreamlyDiagnostic:{request_id}] Extraction failed: info dict returned empty")
             raise HTTPException(status_code=400, detail="Failed to extract media information")
 
@@ -365,10 +448,14 @@ async def analyze_url(req: AnalyzeRequest):
         logger.info(f"[StreamlyDiagnostic:{request_id}] Successfully extracted metadata. Title length: {len(metadata['title'])}, Video Formats: {len(video_formats)}, Audio Formats: {len(audio_formats)}")
         return {"success": True, "data": metadata}
 
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e)
         logger.error(f"[StreamlyDiagnostic:{request_id}] Extraction error caught: {err_msg}")
-        if "Private" in err_msg or "login" in err_msg or "Sign in to confirm" in err_msg:
+        if is_bot_detection_error(err_msg):
+            raise HTTPException(status_code=429, detail=BOT_DETECTION_MESSAGE)
+        if is_private_content_error(err_msg):
             raise HTTPException(status_code=400, detail="This content is private or requires authentication")
         raise HTTPException(status_code=400, detail=f"Extraction failed: {err_msg}")
 
@@ -397,8 +484,7 @@ async def download_media(
 
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp3")
 
-        ydl_opts = get_yt_dlp_opts()
-        ydl_opts.update({
+        mp3_opts = {
             "format": "bestaudio/best",
             "outtmpl": out_template,
             "postprocessors": [{
@@ -406,13 +492,20 @@ async def download_media(
                 "preferredcodec": "mp3",
                 "preferredquality": bitrate_arg.replace("k", ""),
             }],
-        })
+        }
 
         def run_mp3():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            download_with_client_rotation(url, mp3_opts, unique_id)
 
-        await loop.run_in_executor(None, run_mp3)
+        try:
+            await loop.run_in_executor(None, run_mp3)
+        except HTTPException:
+            raise
+        except Exception as e:
+            cleanup_temp_files(unique_id)
+            if is_bot_detection_error(str(e)):
+                raise HTTPException(status_code=429, detail=BOT_DETECTION_MESSAGE)
+            raise HTTPException(status_code=500, detail=f"Failed to generate MP3 audio file: {e}")
 
         # Immediately purge raw intermediate stream (.webm/.m4a) keeping target .mp3
         cleanup_temp_files(unique_id, keep_file=expected_file)
@@ -447,18 +540,24 @@ async def download_media(
         expected_file = os.path.join(temp_dir, f"{unique_id}.mp4")
         format_spec = f"bestvideo[height={target_height}]+bestaudio/bestvideo[height<={target_height}]+bestaudio/best[height<={target_height}]/best"
 
-        ydl_opts = get_yt_dlp_opts()
-        ydl_opts.update({
+        mp4_opts = {
             "format": format_spec,
             "outtmpl": out_template,
             "merge_output_format": "mp4",
-        })
+        }
 
         def run_mp4():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            download_with_client_rotation(url, mp4_opts, unique_id)
 
-        await loop.run_in_executor(None, run_mp4)
+        try:
+            await loop.run_in_executor(None, run_mp4)
+        except HTTPException:
+            raise
+        except Exception as e:
+            cleanup_temp_files(unique_id)
+            if is_bot_detection_error(str(e)):
+                raise HTTPException(status_code=429, detail=BOT_DETECTION_MESSAGE)
+            raise HTTPException(status_code=500, detail=f"Failed to generate MP4 video file: {e}")
 
         # Immediately purge raw intermediate video/audio streams keeping target .mp4
         cleanup_temp_files(unique_id, keep_file=expected_file)
