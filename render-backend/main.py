@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import asyncio
 import logging
+import time
 import urllib.request
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, BackgroundTasks
@@ -45,6 +46,67 @@ def get_ffmpeg_path() -> str:
 
     return "ffmpeg"
 
+def ensure_bgutil_server_running() -> bool:
+    """
+    Automatic startup and health checking for local bgutil PO token server on port 4416.
+    Ensures port 4416 is listening and healthy before yt-dlp processes any media requests.
+    """
+    try:
+        req = urllib.request.Request("http://127.0.0.1:4416/ping")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            if resp.status == 200:
+                logger.info("[Streamly] bgutil PO Token Provider HTTP server is READY on http://127.0.0.1:4416")
+                return True
+    except Exception:
+        pass
+
+    possible_paths = [
+        "/root/bgutil-ytdlp-pot-provider/server/build/main.js",
+        "/opt/bgutil-server/server/build/main.js",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "test-bgutil-server", "server", "build", "main.js")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "bgutil-server", "build", "main.js")),
+    ]
+
+    server_script = None
+    for p in possible_paths:
+        if os.path.exists(p):
+            server_script = p
+            break
+
+    if not server_script:
+        logger.warning("[Streamly] bgutil main.js build file not found in known locations. Skipping auto-spawn.")
+        return False
+
+    node_bin = shutil.which("node") or "node"
+    logger.info(f"[Streamly] Launching bgutil server on port 4416 via '{node_bin}' '{server_script}'...")
+
+    try:
+        import subprocess
+        subprocess.Popen(
+            [node_bin, server_script, "-p", "4416"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(15):
+            time.sleep(1)
+            try:
+                req = urllib.request.Request("http://127.0.0.1:4416/ping")
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    if resp.status == 200:
+                        logger.info("[Streamly] bgutil PO Token Provider HTTP server auto-started successfully on http://127.0.0.1:4416")
+                        return True
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"[Streamly] Error auto-starting bgutil server: {e}")
+        return False
+
+    return False
+
+@app.on_event("startup")
+def on_startup():
+    ensure_bgutil_server_running()
+
 class SafeDiagnosticLogger:
     def debug(self, msg):
         self._write_safe("DEBUG", msg)
@@ -74,6 +136,9 @@ class SafeDiagnosticLogger:
         print(f"[yt-dlp {level}] {safe_msg}", flush=True)
 
 def get_yt_dlp_opts() -> dict:
+    # Ensure local bgutil HTTP server is listening on port 4416
+    ensure_bgutil_server_running()
+
     ffmpeg_bin = get_ffmpeg_path()
     
     extractor_args = {
@@ -150,13 +215,7 @@ def yt_dlp_debug():
         except Exception:
             cookie_netscape_valid = False
 
-    bgutil_ping_ok = False
-    try:
-        req = urllib.request.Request("http://127.0.0.1:4416/ping")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            bgutil_ping_ok = (resp.status == 200)
-    except Exception:
-        bgutil_ping_ok = False
+    bgutil_ping_ok = ensure_bgutil_server_running()
 
     main_js_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/main.js")
     generate_once_exists = os.path.exists("/root/bgutil-ytdlp-pot-provider/server/build/generate_once.js")
