@@ -145,11 +145,12 @@ class SafeDiagnosticLogger:
         print(f"[yt-dlp {level}] {safe_msg}", flush=True)
 
 # YouTube bot-detection handling ------------------------------------------------
+# Ordered from most-reliable format providers (with PO token + cookies) to fallbacks.
 PLAYER_CLIENT_FALLBACKS = [
-    ["web_embedded", "mweb", "android_vr", "android"],
-    ["android", "android_vr"],
-    ["tv_embedded", "web_embedded"],
-    ["ios", "mweb"],
+    ["web_safari", "web", "tv"],
+    ["tv", "mweb"],
+    ["web", "web_embedded"],
+    ["android", "ios"],
 ]
 
 BOT_DETECTION_MESSAGE = (
@@ -350,6 +351,56 @@ def yt_dlp_debug():
             "node": {}
         }
     }
+
+@app.get("/api/list-formats")
+async def list_formats(url: str = Query(...)):
+    """Diagnostic: report which player_client (if any) returns downloadable formats."""
+    url = url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL parameter is required")
+
+    loop = asyncio.get_event_loop()
+    attempts = []
+    winning = None
+
+    for clients in PLAYER_CLIENT_FALLBACKS:
+        ydl_opts = get_yt_dlp_opts(player_client_override=clients)
+        ydl_opts.update({"skip_download": True, "extract_flat": False, "quiet": True, "verbose": False})
+        entry = {"player_client": clients}
+        try:
+            info = await loop.run_in_executor(
+                None,
+                lambda o=ydl_opts: yt_dlp.YoutubeDL(o).extract_info(url, download=False),
+            )
+            fmts = (info or {}).get("formats", []) or []
+            entry["ok"] = True
+            entry["format_count"] = len(fmts)
+            entry["sample_formats"] = [
+                {
+                    "format_id": f.get("format_id"),
+                    "ext": f.get("ext"),
+                    "height": f.get("height"),
+                    "vcodec": f.get("vcodec"),
+                    "acodec": f.get("acodec"),
+                    "note": f.get("format_note"),
+                }
+                for f in fmts[:25]
+            ]
+            if fmts and not winning:
+                winning = clients
+        except Exception as e:
+            entry["ok"] = False
+            entry["error"] = str(e)[:400]
+            entry["bot_detected"] = is_bot_detection_error(str(e))
+        attempts.append(entry)
+
+    return {
+        "url": url,
+        "winning_player_client": winning,
+        "any_formats_found": winning is not None,
+        "attempts": attempts,
+    }
+
 
 @app.post("/api/analyze", dependencies=[Depends(verify_token)])
 async def analyze_url(req: AnalyzeRequest):
